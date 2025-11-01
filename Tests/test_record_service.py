@@ -1,0 +1,69 @@
+import pytest
+from BLL.Services.RecordService.RecordService import RecordService
+from DAL.AddressBookStorage import AddressBookStorage
+from DAL.Entities.Record import Record
+from DAL.Exceptions.InvalidException import InvalidException
+from DAL.Exceptions.NotFoundException import NotFoundException
+
+@pytest.fixture
+def service():
+    return RecordService(AddressBookStorage())
+
+def test_save_and_get_by_name(service):
+    record = Record("John", "1234567890")
+    service.save(record)
+    result = service.get_by_name("John")
+    assert result == record
+    assert result.name.value == "John"
+
+def test_save_duplicate_raises(service):
+    record = Record("John", "1234567890")
+    service.save(record)
+    with pytest.raises(InvalidException):
+        service.save(Record("John", "1112223333"))
+
+def test_update_record(service):
+    old = Record("John", "1234567890")
+    service.save(old)
+
+    new = Record("John", "0987654321")
+    updated = service.update("John", new)
+    assert updated.phones[0].value == "0987654321"
+
+def test_update_not_found_raises(service):
+    with pytest.raises(NotFoundException):
+        service.update("Ghost", Record("Ghost", "1111111111"))
+
+def test_rename_record(service):
+    record = Record("John", "1234567890")
+    service.save(record)
+
+    renamed = service.rename("John", "Johnny")
+    assert renamed.name.value == "Johnny"
+    assert not service.has("John")
+    assert service.has("Johnny")
+
+def test_delete_record(service):
+    record = Record("Jane", "1112223333")
+    service.save(record)
+    assert service.has("Jane")
+
+    service.delete("Jane")
+    assert not service.has("Jane")
+
+def test_delete_nonexistent(service):
+    with pytest.raises(NotFoundException):
+        service.delete("Ghost")
+
+def test_get_all_records(service):
+    service.save(Record("John", "1234567890"))
+    service.save(Record("Jane", "0987654321"))
+    all_records = service.get_all()
+    assert len(all_records) == 2
+    assert any(r.name.value == "Jane" for r in all_records)
+
+def test_has_validation(service):
+    with pytest.raises(InvalidException):
+        service.has(None)
+    with pytest.raises(InvalidException):
+        service.has(123)
